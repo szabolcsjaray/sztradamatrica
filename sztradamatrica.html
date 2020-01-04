@@ -51,7 +51,7 @@
         }
 
         let autoLista =loadData(AUTO_LISTA);
-        if (autoLista.length>0) {
+        if (autoLista!=null && autoLista.length>0) {
             autok = autoLista.split(",");
             autok.forEach(function(item) {
                 addOption("auto", item);
