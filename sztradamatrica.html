@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="author" content="Szabolcs Járay">
+    <meta name="description" content="Sztrádamatricákat lokálisan nyilvántartó weboldal">
+    <meta name="language" content="Hungarian">
+    <title>Sztrádamatrica</title>
+
+    <script type="text/javascript" >
+
+    const AUTO_LISTA = "autoLista";
+    const VASAROLT_MATRICAK = "vasaroltMatricak";
+
+    function saveData(name, data) {
+        window.localStorage.setItem(name, data);
+    }
+
+    function loadData(name) {
+        return window.localStorage.getItem(name);
+    }
+
+    const megyek=["Bács-Kiskun", "Baranya", "Békés", "Borsod-Abaúj-Zemplén", "Csongrád", "Fejér",
+        "Győr-Moson-Sopron", "Hajdú-Bihar", "Heves", "Jász-Nagykun-Szolnok",
+        "Komárom-Esztergom", "Nógrád", "Pest", "Somogy", "Szabolcs-Szatmár-Bereg", "Tolna",
+        "Vas", "Veszprém", "Zala"];
+
+    var autok = [];
+    var vett = "";
+
+    function getEl(el) {
+        return document.getElementById(el);
+    }
+
+    function addOption(id, item) {
+        var option = document.createElement("option");
+        option.text = item;
+        getEl(id).add(option);
+    }
+
+    function initFields() {
+        var option;
+        megyek.forEach(function(item) {
+            addOption("megye", item);
+        });
+
+        let dateNow = new Date();
+        let yearNow = dateNow.getFullYear();
+        for(let y=2020;y<=yearNow+1;y++) {
+            addOption("year", y);
+        }
+
+        let autoLista =loadData(AUTO_LISTA);
+        if (autoLista.length>0) {
+            autok = autoLista.split(",");
+            autok.forEach(function(item) {
+                addOption("auto", item);
+            });
+        }
+
+        vett = loadData(VASAROLT_MATRICAK);
+        if (vett==null) vett="";
+        refreshTable();
+        getEl("head").innerHTML = sztrada + " SZTRÁDAMATRICA " + sztrada;
+    }
+
+    function refreshTable() {
+        let t = getEl("kiir");
+        var rowCount = t.rows.length;
+        while(rowCount--) t.deleteRow(rowCount);
+        if (vett==null || vett=="") return;
+
+        let vettLista=vett.split("|");
+        let nincs = true;
+        let odd=false;
+        let todayDate = new Date();
+        let todayDateStr = dateStr(todayDate);
+        if (getEl("year").value>getYear( todayDateStr)) {
+            todayDateStr = getEl("year").value + ".01.01. 00:00";
+        }
+        vettLista.forEach(function(vettElem) {
+            let vettSor = vettElem.split(",");
+            let validStr = validToDateStr(vettSor[3], vettSor[2][0]);
+            if (vettSor[1]==getEl("auto").value &&
+                (vettSor[0]==getEl("year").value ||
+                (vettSor[0]==parseInt(getEl("year").value)-1 && validStr>todayDateStr))) {
+                nincs = false;
+                let tr = t.insertRow(0);
+                if (odd) {
+                    tr.className="odd";
+                }
+                odd = !odd;
+                let terkepCol = "#d9d9d9";
+                if (todayDateStr>validStr || vettSor[3]>todayDateStr) {
+                    tr.className += " expired";
+                    terkepCol = "#487984";
+                }
+                for(let i=2;i<4;i++) {
+                    let td = tr.insertCell(i-2);
+                    td.innerHTML=vettSor[i];
+                    if (i==2 && vettSor[2][0]!='M') {
+                        td.innerHTML = td.innerHTML + " " + terkep.replace("FILL", terkepCol);
+                    }
+                }
+                let td = tr.insertCell(2);
+                td.innerHTML = validStr;
+            }
+        });
+        if (nincs) {
+            let tr=t.insertRow(0);
+            tr.className="expired";
+            let td = tr.insertCell(0);
+            td.innerHTML = getEl("year").value + ", " + getEl("auto").value + " - NINCS MATRICA";
+        }
+    }
+
+    function autoAdd() {
+        let ujAuto = getEl("autoNev").value
+        addOption("auto", ujAuto);
+        getEl("autoNev").value = "";
+        autok.push(ujAuto);
+        let autoStr = "";
+        autok.forEach(function(item){autoStr += item+",";});
+        if(autoStr.length>0) {
+            autoStr = autoStr.slice(0,-1);
+        }
+        saveData(AUTO_LISTA, autoStr);
+        refreshTable();
+    }
+
+    function twoDigit(a) {
+        return (a<10 ? "0"+a : a);
+    }
+
+    function dateStr(date) {
+        return  date.getFullYear() + "." + twoDigit(date.getMonth()+1) + "." + twoDigit(date.getDate()) + ". " +
+            twoDigit(date.getHours()) + ":" + twoDigit(date.getMinutes());
+    }
+    function getYear(dateStr) {
+        return dateStr.slice(0,4);
+    }
+    function getMonth(dateStr) {
+        return dateStr.slice(5,7);
+    }
+    function getDay(dateStr) {
+        return dateStr.slice(8,10);
+    }
+
+    function validToDateStr(fromDateStr, tipus) {
+        let toDateStr, m, y, d;
+        switch (tipus[0]) {
+            case 'E' :
+            case 'M' :
+                toDateStr = (parseInt(getYear(fromDateStr))+1) + ".01.31. 23:59";
+                break;
+            case 'H' :
+                m = parseInt(getMonth(fromDateStr));
+                y = parseInt(getYear(fromDateStr));
+                d = parseInt(getDay(fromDateStr));
+                if (m==12) {
+                    y = y+1;
+                    m = 1;
+                } else {
+                    m++;
+                }
+                toDateStr = y+"."+twoDigit(m)+"."+twoDigit(d)+". 23:59";
+                break;
+            case 'T':
+                m = getMonth(fromDateStr);
+                y = getYear(fromDateStr);
+                d = getDay(fromDateStr);
+                let date=new Date();
+                date.setFullYear(parseInt(y));
+                date.setMonth(parseInt(m)-1);
+                date.setDate(parseInt(d)+9);
+                date.setHours(23);
+                date.setMinutes(59);
+                toDateStr = dateStr(date);
+                break;
+        }
+        return toDateStr
+    }
+
+    function matricaVett(tipus) {
+        let date = new Date();
+        if ((tipus[0]=='E' || tipus[0]=='M') &&
+            getEl("year").value>date.getFullYear()) {
+            if (confirm("Következő évre vetted meg?")) {
+                date.setFullYear(getEl("year").value);
+                date.setMonth(0);
+                date.setDate(1);
+            }
+        }
+        if (biztos(tipus, date)) {
+            let ujVett = ""+date.getFullYear()+","+getEl("auto").value+"," + tipus + "," + dateStr(date);
+            if (vett.length>0) ujVett = "|"+ujVett;
+            vett = vett+ujVett;
+            saveData(VASAROLT_MATRICAK, vett);
+            refreshTable();
+        }
+    }
+
+    function biztos(tipus, date) {
+        let tipusStr = tipus.slice(3);
+        if (tipus[0]=='M') {
+            tipusStr = "megyei: " + tipusStr;
+        }
+        return confirm("Kezdő dátum: " + dateStr(date) + "\n" +
+            "Típus: " + tipusStr + "\n" +
+            "Autó: " + getEl("auto").value + "\n" +
+            "Valóban megvetted a matricát?");
+    }
+
+    function evesVett() {
+        matricaVett("E: éves");
+    }
+
+    function megyeiVett() {
+        matricaVett("M: "+getEl("megye").value);
+    }
+
+    function haviVett() {
+        matricaVett("H: havi matrica");
+    }
+
+    function tizNaposVett() {
+        matricaVett("T: tíz napos");
+    }
+
+    function nyilBalra(selectId) {
+        let sel = getEl(selectId);
+        if (sel.selectedIndex>0) {
+            sel.value = sel.options[sel.selectedIndex-1].value;
+        }
+        refreshTable();
+    }
+
+    function nyilJobbra(selectId) {
+        let sel = getEl(selectId);
+        if (sel.selectedIndex<sel.options.length-1) {
+            sel.value = sel.options[sel.selectedIndex+1].value;
+        }
+        refreshTable();
+    }
+
+    const sztrada =  "<svg xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\""+
+        "xmlns:svg=\"http://www.w3.org/2000/svg\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\""+
+        "xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\""+
+        "width=\"27\" height=\"27\" viewBox=\"0 0 300 300\" id=\"svg4088\" version=\"1.1\" inkscape:version=\"0.48.4 r9939\" sodipodi:docname=\"AJAX1.svg\">"+
+        "<g inkscape:label=\"Ebene 1\" inkscape:groupmode=\"layer\" id=\"layer1\" transform=\"translate(-632.80412,-270.89062)\">"+
+        "    <g id=\"g4034\" transform=\"translate(626.51037,195.53437)\">"+
+        "    <rect style=\"fill:#fefefe;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:1.5;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none\""+
+        "        id=\"rect4026\" width=\"298\" height=\"298\" x=\"7.3467708\" y=\"76.399239\" rx=\"20\" ry=\"20\" />"+
+        "    <rect ry=\"5\" rx=\"5\" y=\"92.899239\" x=\"23.846771\" height=\"265\" width=\"265\" id=\"rect4028\" style=\"fill:#003399;fill-opacity:1;fill-rule:nonzero;stroke:none\" />"+
+        "    <path inkscape:connector-curvature=\"0\" id=\"path7442\" "+
+        "        d=\"m 117.69052,106.97736 -9.0625,62.09375 32.3125,0 0,-62.09375 -23.25,0 z m 54.0625,0 0,62.09375 32.3125,0 -9.09375,-62.09375 -23.21875,0 z m -134.843749,76.75 0,17.1875 c 23.72171,3.4e-4 23.71875,0.0906 23.71875,32.8125 l 17.6875,0 c 0,-32.82828 -0.01863,-32.8125 23.718749,-32.8125 l 110.125,0 c 22.22222,0 22.21875,-0.0158 22.21875,32.8125 l 17.65625,0 c 0,-32.82828 0.0126,-32.8125 23.75,-32.8125 l 0,-17.1875 -238.874999,0 z m 62.625,29.8125 -20.71875,130.28125 62.124999,0 0,-130.28125 -41.406249,0 z m 72.218749,0 0,130.28125 62.125,0 -20.71875,-130.28125 -41.40625,0 z\""+
+        "       style=\"fill:#fefefe;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none\" />"+
+        "    </g>"+
+        "</g>"+
+        "</svg>";
+    const terkep = "<svg" +
+        "   xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"" +
+        "   xmlns:svg=\"http://www.w3.org/2000/svg\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\"" +
+        "   xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" version=\"1.0\" width=\"20\" height=\"20\" viewBox=\"0 0 1280 1280\" preserveAspectRatio=\"xMidYMid meet\"" +
+        "   id=\"svg3788\" sodipodi:docname=\"magyarorszag.svg\" inkscape:version=\"0.92.4 (f8dce91, 2019-08-02)\">" +
+        "  <defs id=\"defs3792\" />" +
+        "  <metadata id=\"metadata3782\">" +
+        "</metadata>" +
+        "  <g transform=\"matrix(0.1,0,0,-0.1,1.5000001,1278.5)\" id=\"g3786\" style=\"fill:FILL;stroke:none\">" +
+        "    <path" +
+        "       d=\"m 8795,10220 c -563.0317,59.934 -671.239,-366.4056 -895,-776 -68.945,-258.706 -549.0251,-674.9934 -500.2812,-348.8906 C 7135.8962,9095.7498 6954.6435,8907.9385 6962,9077 6651.7475,9644.6138 6051.9729,8519.5333 6274.9375,8876.1562 5926.2357,8716.2646 5587.8668,8836.8823 5204.75,8725 4882.11,8449.4722 5280.484,7896.12 4681.25,7977.625 4179.2361,7862.4199 3657.7455,7895.9742 3148.75,7973.5 2762.1877,8106.0283 2395.7307,8983.5951 1938.875,8498.75 1751.3296,8035.9631 1947.9702,7984.7586 1860,7821 1543.5844,7715.8148 688.15298,7939.1002 988.875,7922.25 495.08165,7740.1509 1227.9405,7300.5244 1123,7414 1193.0795,7263.4216 1200.9096,6865.9534 850.25,7048.875 719.60812,6855.2 610.49865,6049.8008 698,6298 1296.5076,6342.7278 110.95275,5539.1942 610,5876 410.0539,5869.1784 -176.30248,5360.0656 408.64062,5480.1094 719.38446,5520.9516 286.40706,5088.821 653,5038 c 21.90849,-507.5539 645.1605,-670.8937 506,-638 293.673,-357.9837 585.9227,-686.3998 981.5,-918.125 68.6451,-249.2754 877.7025,-420.7405 574.5,-471.875 328.8187,-136.5025 567.134,-506.7216 965,-406 263.7293,-101.2778 1017.4963,-48.1069 799,-47 276.7754,192.3826 1052.9774,347.2055 722,385 453.8327,216.8573 -160.8466,-382.5773 370,129 180.7664,0.6688 -7.5576,461.3986 238,73 243.3997,49.7134 662.566,781.5516 644.625,466.25 359.6646,111.1723 501.3873,-222.3067 849.375,59.75 431.0413,-207.0464 1086.5382,-185.3534 890,-124 305.6015,197.0732 208.8312,-228.5731 502,206 168.0586,334.0761 551.3202,-99.1145 728,214 234.9206,277.7242 428.8569,1269.9029 350,894 476.016,46.27 818.661,904.5045 524,709 97.225,291.3709 675.988,901.6851 381,701 -67.194,387.8448 308.656,1223.035 357.25,852.125 161.862,278.7362 719.809,925.6389 521.25,702.25 232.774,36.2567 852.764,-39.5616 590.125,109.25 378.726,424.9772 596.427,230.9537 448.375,581.375 70.855,244.3387 -779.69,187.6749 -460,393 -40.4,280.6276 -692.06,439.3234 -458.812,441.9375 -108.876,305.0597 -919.954,136.5456 -592.188,335.0625 -398.023,-137.5746 -766.003,-98.4638 -866,355 -329.0037,410.56 -739.6736,-254.4026 -1100,50 -110.8775,30.097 -210.1289,130.253 -323,130 z\"" +
+        "       id=\"path3784\" inkscape:connector-curvature=\"0\" />" +
+        "  </g>" +
+        "</svg>"; // SVG originally created by potrace 1.15, written by Peter Selinger 2001-2017
+    </script>
+    <style>
+        body { background-color: #2d4d48; color: #d9d9d9; font-weight: bold; text-align:center; }
+        button { background-color: #abc2ca; border-radius: 6px; font-weight: bold; }
+        button.long { width: 216px; }
+        td { padding: 0px 10px 0px 10px; text-align:center; }
+        td.cim { text-align: right; }
+        tr.odd { background-color: #232a40; height: 25px; }
+        h1 { text-align: center; }
+        select { font-weight: bold; }
+        div.tableDiv { background-color: #2b3851;display:inline-block;border-radius:15px; padding:5px; }
+        p#head { font-size: 30px; font-weight: bold; display:inline-block; background-color: #2b3851; border-radius: 8px; padding:10px; }
+        div#disclaimer {font-weight: normal; font-size: 10px; color:black; }
+        tr.expired { color: #487984; }
+    </style>
+</head>
+<body onload="initFields()">
+    <p id="head"></p>
+    <div style="position:relative;width:100%;text-align: center;">
+        <div class="tableDiv">
+            <table >
+                <tr class="odd">
+                    <td class="cim">Autó:</td>
+                    <td>
+                        <button type="button" onclick="nyilBalra('auto');"> &lt; </button>
+                        <select id="auto" onchange="refreshTable();"></select>
+                        <button type="button" onclick="nyilJobbra('auto');"> &gt; </button>
+                    </td>
+                    <td><input id="autoNev" size="10"> <button type="button" onclick="autoAdd();">Hozzáad</button></td>
+                </tr>
+                <tr>
+                    <td class="cim">Év:</td>
+                    <td>
+                        <button type="button" onclick="nyilBalra('year');"> &lt; </button>
+                        <select id="year"  onchange="refreshTable();"></select>
+                        <button type="button" onclick="nyilJobbra('year');"> &gt; </button>
+                    </td>
+                    <td><button type="button" class="long" onclick="evesVett();">Éveset megvettük</button></td>
+                </tr>
+                <tr class="odd">
+                    <td class="cim">Megye:</td>
+                    <td><select id="megye"></select></td>
+                    <td><button type="button" class="long" onclick="megyeiVett();">Megyeit megvettük</button></td>
+                </tr>
+                <tr>
+                    <td class="cim">Havi:</td>
+                    <td></td>
+                    <td><button type="button" class="long" onclick="haviVett();">Havit megvettük</button></td>
+                </tr>
+                <tr class="odd">
+                    <td class="cim">10 napos:</td>
+                    <td></td>
+                    <td><button type="button" class="long" onclick="tizNaposVett();">10 napost megvettük</button></td>
+                </tr>
+            </table>
+        </div>
+        <br><br>
+        <div class="tableDiv">
+            <table id="kiir">
+                <tbody >
+                </tbody>
+            </table>
+        </div>
+        <br><br>
+        <div id="disclaimer">
+            Járay Szabolcs, 2020. Sztráda SVG kép innen: https://commons.wikimedia.org/wiki/File:Autoroute_F.svg
+        </div>
+    </div>
+</body>
